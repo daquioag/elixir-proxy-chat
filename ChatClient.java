@@ -13,7 +13,7 @@ class ChatClient {
         var out = new PrintWriter(new OutputStreamWriter(s.getOutputStream()), true);
         var stdin = new BufferedReader(new InputStreamReader(System.in));
     ) {
-      String  line, reply;
+      String line, reply;
 
       while (true) {
         System.out.print("> ");
