@@ -4,6 +4,7 @@ defmodule Chat.BroadcastServer do
   @tab Chat.BroadcastServer.Table
 
   def start_link(_args) do
+    IO.puts("Starting BroadCastServer!")
     GenServer.start_link(__MODULE__, nil, name: @name)
   end
 
@@ -11,19 +12,40 @@ defmodule Chat.BroadcastServer do
     GenServer.call(@name, :list)
   end
 
-  @impl true
-  def init(name) do
-    value =
-      case :ets.lookup(@tab, name) do
-        [{^name, v}] -> v
-        _ -> []
-      end
+  def nick(name) do
+    GenServer.call(@name, {:nick, name})
+  end
 
-    {:ok, {name, value}}
+  def bc(msg) do
+    GenServer.call(@name, {:bc, msg})
+  end
+
+  def msg(name, message) do
+    GenServer.call(@name, {:msg, name, message})
+  end
+
+  def terminate_user(pid) do
+    GenServer.cast(@name, {:terminate_user, pid})
+  end
+
+  def value() do
+    GenServer.call(@name, :value)
   end
 
   @impl true
-  def handle_call({:list}, _from, state) do
+  def init(_) do
+    {:ok, nil}
+  end
+
+  @impl true
+  def handle_call(:list, _from, state) do
+    # Handle list command
+    everything = :ets.tab2list(:users)
+    {:reply, {:ok, everything}, state}
+  end
+
+  @impl true
+  def handle_call({:nick, name}, _from, state) do
     # Handle list command
     {:reply, state, state}
   end
