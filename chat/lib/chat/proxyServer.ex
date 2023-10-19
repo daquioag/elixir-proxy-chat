@@ -27,9 +27,13 @@ defmodule Chat.ProxyServer do
         handle_client_command(socket, data)
         :inet.setopts(socket, [{:active, :once}])
         loop(socket)
-
+      {:message, content} ->
+        IO.inspect(content)
+       :gen_tcp.send(socket, "#{content}\n")
+       loop(socket)
       {:tcp_closed, ^socket} ->
         IO.puts("#{inspect(self())}: connection #{inspect(socket)} closed")
+        #GenServer.call({:global, Chat.BroadcastServer}, {:delete})
         :gen_tcp.close(socket)
 
       _ ->
@@ -45,6 +49,7 @@ defmodule Chat.ProxyServer do
       "/LIST" -> handle_list_command(socket)
       "/NICK" -> handle_nick_command(socket, args)
       "/BC" -> handle_bc_command(socket, args)
+      "/MSG" -> handle_msg_command(socket, args)
       _ -> handle_unknown_command(socket)
     end
   end
@@ -52,7 +57,6 @@ defmodule Chat.ProxyServer do
   defp handle_list_command(socket) do
     {:ok, names_list} = GenServer.call({:global, Chat.BroadcastServer}, :list)
     names_string = Enum.join(names_list, ", ")
-
     :gen_tcp.send(socket, "List of NickNames: ")
     :gen_tcp.send(socket, names_string <> "\n")
   end
@@ -102,6 +106,19 @@ defmodule Chat.ProxyServer do
       end
   end
 
+  defp handle_msg_command(socket, arguments) do
+    [ name | message_list] = arguments
+    string_message = Enum.join(message_list, " ")
+    case GenServer.call({:global, Chat.BroadcastServer}, {:bc, name, string_message}) do
+      {:ok, receiver_pid} ->
+        send(receiver_pid, string_message)
+          :gen_tcp.send(socket, message <> "\n")
+        {:error, reason} ->
+          IO.puts("Error: #{reason}")
+          :gen_tcp.send(socket, reason <> "\n")
+      end
+    end
+
   defp validate_nickname(name) do
     Regex.match?(~r/^[a-zA-Z][a-zA-Z0-9_]{0,9}$/, name)
   end
@@ -109,5 +126,17 @@ defmodule Chat.ProxyServer do
   defp handle_unknown_command(socket) do
     IO.puts("Unknown command")
     :gen_tcp.send(socket, "Unknown command\n")
+  end
+
+  defp receive_message(socket) do
+    receive do
+      {:message, content} ->
+        IO.inspect(content)
+        :gen_tcp.send(socket, "Received message: #{content}\n")
+        loop(socket)
+      after
+        1000 ->  # Adjust the timeout value (in milliseconds) based on your requirements
+          loop(socket)
+      end
   end
 end

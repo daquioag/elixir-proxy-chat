@@ -42,30 +42,30 @@ defmodule Chat.BroadcastServer do
   end
 
   @impl true
-  def handle_call(:list, from, state) do # for testing purposes we use the pid and from
+  # for testing purposes we use the pid and from
+  def handle_call(:list, _from, state) do
     # Handle list command
-    {pid, _} = from
-    count = 1
-    :ets.insert(@tab, {pid, "Testname #{count}"})
     {:reply, {:ok, get_names()}, state}
   end
 
   @impl true
   def handle_call({:nick, pid, name}, _from, state) do
     # Handle list command
+    IO.inspect("    # Handle list command    ")
     user = :ets.lookup(@tab, pid)
+
     if user == [{pid, name}] do
       {:reply, {:ok, "You already have the nickname: '#{name}'"}, state}
     else
-
       names = get_names()
       IO.inspect(names)
       found = Enum.find(names, &(&1 == name))
+
       if found == nil do
         :ets.insert(@tab, {pid, name})
         {:reply, {:ok, "You now have the nickname: '#{name}'"}, state}
       else
-      {:reply,  {:error, "The nickname: '#{name}' is already taken"}, state}
+        {:reply, {:error, "The nickname: '#{name}' is already taken"}, state}
       end
     end
   end
@@ -74,7 +74,6 @@ defmodule Chat.BroadcastServer do
   def handle_call({:bc, message}, from, state) do
     IO.inspect("from")
     {pid, _} = from
-    {:reply, {:ok, "message successfully broadcased to other clients! "}, state}
     current_user = :ets.lookup(@tab, pid)
 
     if current_user == [] do
@@ -83,14 +82,15 @@ defmodule Chat.BroadcastServer do
       [{_, name}] = current_user
       keys = get_keys()
       IO.inspect(keys)
+
       for key <- keys do
         if key != pid do
           IO.inspect("sending message to:")
           IO.inspect(key)
-        send(key, "message from #{name}: #{message} \n")
-        Process.send(key, {:broadcast, "#{name}: #{message}"}, [])
+          send(key, {:message, "Message from #{name}: #{message}"})
         end
       end
+
       {:reply, {:ok, "message successfully broadcased to other clients! "}, state}
     end
   end
@@ -98,11 +98,30 @@ defmodule Chat.BroadcastServer do
   @impl true
   def handle_call({:bc2, message}, from, state) do
     current_user = :ets.lookup(@tab, from)
+
     if current_user == [] do
       {:reply, {:error, "need to make a nickname first"}, state}
     else
       keys = get_keys()
       {:reply, {:ok, keys}, state}
+    end
+  end
+
+  @impl true
+  def handle_call({:msg, receiver_name, message}, from, state) do
+    {sender_pid, _} = from
+    current_user = :ets.lookup(@tab, sender_pid)
+
+    if current_user == [] do
+      {:reply, {:error, "You need to register a nickname first!"}, state}
+    else
+      case :ets.lookup(@tab, receiver_name) do
+        [{receiver_pid, _}] ->
+          {:reply, {:ok, receiver_pid}, state}
+
+        _ ->
+          {:reply, {:error, "The name: #{receiver_name} does not exist!"}, state}
+      end
     end
   end
 
@@ -117,13 +136,18 @@ defmodule Chat.BroadcastServer do
   # end
 
   defp get_names() do
-      pid_dictionary = :ets.tab2list(@tab)
-     Enum.map(pid_dictionary, &elem(&1, 1))
+    pid_dictionary = :ets.tab2list(@tab)
+    Enum.map(pid_dictionary, &elem(&1, 1))
   end
 
   defp get_keys() do
     pid_dictionary = :ets.tab2list(@tab)
-   Enum.map(pid_dictionary, &elem(&1, 0))
-end
+    Enum.map(pid_dictionary, &elem(&1, 0))
+  end
 
+  defp check_name(name) do
+    names = get_names()
+    IO.inspect(names)
+    Enum.find(names, &(&1 == name))
+  end
 end
