@@ -50,31 +50,39 @@ defmodule Chat.ProxyServer do
   end
 
   defp handle_list_command(socket) do
-    {:ok, everything} = GenServer.call({:global, Chat.BroadcastServer}, :list)
-    binary_data = :erlang.iolist_to_binary(everything)
-    :gen_tcp.send(socket, binary_data <> "\n")
+    {:ok, names_list} = GenServer.call({:global, Chat.BroadcastServer}, :list)
+    names_string = Enum.join(names_list, ", ")
+
+    :gen_tcp.send(socket, "List of NickNames: ")
+    :gen_tcp.send(socket, names_string <> "\n")
   end
 
   defp handle_nick_command(socket, args) do
     [nickname | _] = args
 
     if validate_nickname(nickname) do
-      {:ok, result} = GenServer.call({:global, Chat.BroadcastServer}, {:nick, self(), nickname})
+      {_, result} = GenServer.call({:global, Chat.BroadcastServer}, {:nick, self(), nickname})
       IO.inspect(result)
-      :gen_tcp.send(socket, result)
+      :gen_tcp.send(socket, result <> "\n")
     else
-      :gen_tcp.send(socket, "Invalid Name. Name not added!")
+      :gen_tcp.send(socket, "Invalid Name. Name not added! \n")
     end
   end
 
   defp handle_bc_command(socket, message_list) do
+    IO.inspect("handle_bc_command")
     string_message = Enum.join(message_list, " ")
+    trimmed_string_message = String.trim(string_message)
+    if trimmed_string_message == "" do
+      :gen_tcp.send(socket, "The broadcast message cannot be empty \n")
+    end
+
     case GenServer.call({:global, Chat.BroadcastServer}, {:bc, string_message}) do
       {:ok, message} ->
-          :gen_tcp.send(socket, message)
+          :gen_tcp.send(socket, message <> "\n")
         {:error, reason} ->
           IO.puts("Error: #{reason}")
-          :gen_tcp.send(socket, reason)
+          :gen_tcp.send(socket, reason <> "\n")
       end
     end
 
