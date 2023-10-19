@@ -9,11 +9,12 @@ class ChatClient {
 
     try (
         var s = new Socket(host, port);
-        var in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+                  var stdin = new BufferedReader(new InputStreamReader(System.in));
         var out = new PrintWriter(new OutputStreamWriter(s.getOutputStream()), true);
-        var stdin = new BufferedReader(new InputStreamReader(System.in));
+        
     ) {
-      String line, reply;
+      new ServerReaderThread(s).start();
+      String line;
 
       while (true) {
         System.out.print("> ");
@@ -21,11 +22,29 @@ class ChatClient {
           break;
         }
         out.println(line);
-        if ((reply = in.readLine()) == null) {
-          break;
-        }
-        System.out.println(reply);
       }
     }
   }
 }
+
+class ServerReaderThread extends Thread {
+    private Socket s;
+
+  ServerReaderThread(Socket s){
+      this.s = s;
+
+  }
+  public void run (){
+    try {
+      var in = new BufferedReader(new InputStreamReader(s.getInputStream()));
+      String reply;
+      while ((reply = in.readLine()) != null) {
+        System.out.println(reply);
+       } 
+    }catch (IOException e) {
+            e.printStackTrace();
+        }
+  }
+}
+//reading from socket and keyboard is 2 different threads.
+// there must be 2 threads

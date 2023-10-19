@@ -40,7 +40,9 @@ defmodule Chat.BroadcastServer do
   @impl true
   def handle_call(:list, _from, state) do
     # Handle list command
-    everything = :ets.tab2list(:users)
+    :ets.insert(@tab, {:ok, "TESTSETSETSET"})
+    everything = :ets.tab2list(@tab)
+    IO.inspect(everything)
     {:reply, {:ok, everything}, state}
   end
 

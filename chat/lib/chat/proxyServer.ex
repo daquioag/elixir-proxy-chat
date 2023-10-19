@@ -45,8 +45,15 @@ defmodule Chat.ProxyServer do
   defp loop(socket) do
     receive do
       {:tcp, ^socket, data} ->
-        # :gen_tcp.send(socket, data)
-        handle_client_command(socket, data)
+        IO.inspect("data")
+        IO.inspect(data)
+       hello = handle_client_command(socket, data)
+       IO.inspect("hello")
+       IO.inspect(hello)
+
+       #:gen_tcp.send(socket, String.to_charlist(hello))
+
+        :gen_tcp.send(socket, data)
         :inet.setopts(socket, [{:active, :once}])  # need to reset active once
         loop(socket)
         {:tcp_closed, ^socket} ->
@@ -61,17 +68,18 @@ defmodule Chat.ProxyServer do
     [command | args] = String.split(data, ~r/\s+/)
     case command do
       "/LIST" -> handle_list_command(socket)
+      "/NICK" -> hanle_nick_command(socket)
       _ -> handle_unknown_command()
     end
   end
 
     defp handle_list_command(socket) do
-    # result = GenServer.call(@broadcast_server, {"/LIST", self()})
-    # IO.inspect(result)
-    response = "Handling LIST command"
-    :gen_tcp.send(socket, response)
-    # IO.puts(inspect(self()))
-    # IO.puts("Handling LIST command")
+      IO.inspect("handle_list_command")
+      result = GenServer.call({:global, Chat.BroadcastServer}, :list)
+
+      IO.inspect("result")
+      IO.inspect(result)
+      result
   end
 
     defp handle_unknown_command do
