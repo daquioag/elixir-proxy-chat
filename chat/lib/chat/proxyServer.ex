@@ -47,9 +47,8 @@ defmodule Chat.ProxyServer do
       {:tcp, ^socket, data} ->
         IO.inspect("data")
         IO.inspect(data)
-       hello = handle_client_command(socket, data)
-       IO.inspect("hello")
-       IO.inspect(hello)
+       handle_client_command(socket, data)
+
 
        #:gen_tcp.send(socket, String.to_charlist(hello))
 
@@ -65,22 +64,53 @@ defmodule Chat.ProxyServer do
   end
 
     def handle_client_command(socket, data) do
-    [command | args] = String.split(data, ~r/\s+/)
+    [command | args] = String.split(data, ~r/\s/)
     case command do
       "/LIST" -> handle_list_command(socket)
-      "/NICK" -> hanle_nick_command(socket)
+      "/NICK" -> handle_nick_command(socket, args)
+      "/BC" -> handle_bc_command(socket, args)
       _ -> handle_unknown_command()
     end
   end
 
     defp handle_list_command(socket) do
       IO.inspect("handle_list_command")
+      IO.inspect(socket)
       result = GenServer.call({:global, Chat.BroadcastServer}, :list)
-
       IO.inspect("result")
       IO.inspect(result)
+      IO.inspect(self())
+
       result
   end
+
+  defp handle_nick_command(socket, args) do
+    [nickname | _ ] = args
+    IO.inspect(nickname)
+    test = validate_nickname(nickname)
+    IO.inspect(test)
+    if (validate_nickname(nickname)) do
+      {:ok, result} = GenServer.call({:global, Chat.BroadcastServer}, {:nick, self(), nickname})
+      IO.inspect(result)
+
+      :gen_tcp.send(socket, result)
+    else
+      :gen_tcp.send(socket, "Invalid Name. Name not added!")
+    end
+end
+
+defp handle_bc_command(socket, message_list) do
+  string_message = Enum.join(message_list, " ")
+    {:ok, pid_list} = GenServer.call({:global, Chat.BroadcastServer}, {:bc, string_message})
+    for pid <- pid_list do
+      send(pid, string_message)
+    end
+end
+
+
+  defp validate_nickname(name) do
+  Regex.match?(~r/^[a-zA-Z][a-zA-Z0-9_]{0,9}$/, name)
+end
 
     defp handle_unknown_command do
     IO.puts("Unknown command")
