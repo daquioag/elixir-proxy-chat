@@ -1,7 +1,5 @@
 defmodule Chat.ProxyServer do
   use GenServer
-  # passive server: need to call :gen_tcp.recv to receive data
-  # passive server: need to call :gen_tcp.recv to receive data
   def start_link(port \\ 6666) do
     GenServer.start_link(__MODULE__, port)
   end
@@ -11,29 +9,8 @@ defmodule Chat.ProxyServer do
     opts = [:binary, {:packet, 0}, {:reuseaddr, true}, {:active, :once}]
     {:ok, socket} = :gen_tcp.listen(port, opts)
     spawn(fn -> accept(socket) end)
-    # IO.puts("#{inspect(self())}: accepted connection #{inspect(conn)}")
     {:ok, socket}
   end
-
-  # def accept(socket) do
-  #   case :gen_tcp.accept(socket) do
-  #     {:ok, conn} ->
-  #       spawn(fn -> accept(socket) end)
-  #       loop(conn)
-  #     {:error, :closed} ->
-  #       IO.puts(" cssonnection closed")
-  #       :ok
-  #   end
-  # end
-
-  #   def accept(socket) do
-  #   {:ok, conn} = :gen_tcp.accept(socket)
-  #   IO.puts("connected! ")
-
-  #   spawn(fn -> accept(socket) end)
-  #   IO.puts("#{inspect(self())}: accepted connection #{inspect(conn)}")
-  #   loop(conn)
-  # end
 
   def accept(socket) do
     {:ok, conn} = :gen_tcp.accept(socket)
@@ -47,144 +24,82 @@ defmodule Chat.ProxyServer do
       {:tcp, ^socket, data} ->
         IO.inspect("data")
         IO.inspect(data)
-       handle_client_command(socket, data)
-
-
-       #:gen_tcp.send(socket, String.to_charlist(hello))
-
-        :gen_tcp.send(socket, data)
-        :inet.setopts(socket, [{:active, :once}])  # need to reset active once
+        handle_client_command(socket, data)
+        :inet.setopts(socket, [{:active, :once}])
         loop(socket)
-        {:tcp_closed, ^socket} ->
-          IO.puts("#{inspect(self())}: connection #{inspect(socket)} closed")
-          :gen_tcp.close(socket)
-        _ -> :ok
-          loop(socket)
+
+      {:tcp_closed, ^socket} ->
+        IO.puts("#{inspect(self())}: connection #{inspect(socket)} closed")
+        :gen_tcp.close(socket)
+
+      _ ->
+        :ok
+        loop(socket)
     end
   end
 
-    def handle_client_command(socket, data) do
+  def handle_client_command(socket, data) do
     [command | args] = String.split(data, ~r/\s/)
+
     case command do
       "/LIST" -> handle_list_command(socket)
       "/NICK" -> handle_nick_command(socket, args)
       "/BC" -> handle_bc_command(socket, args)
-      _ -> handle_unknown_command()
+      _ -> handle_unknown_command(socket)
     end
   end
 
-    defp handle_list_command(socket) do
-      IO.inspect("handle_list_command")
-      IO.inspect(socket)
-      result = GenServer.call({:global, Chat.BroadcastServer}, :list)
-      IO.inspect("result")
-      IO.inspect(result)
-      IO.inspect(self())
-
-      result
+  defp handle_list_command(socket) do
+    {:ok, everything} = GenServer.call({:global, Chat.BroadcastServer}, :list)
+    binary_data = :erlang.iolist_to_binary(everything)
+    :gen_tcp.send(socket, binary_data <> "\n")
   end
 
   defp handle_nick_command(socket, args) do
-    [nickname | _ ] = args
-    IO.inspect(nickname)
-    test = validate_nickname(nickname)
-    IO.inspect(test)
-    if (validate_nickname(nickname)) do
+    [nickname | _] = args
+
+    if validate_nickname(nickname) do
       {:ok, result} = GenServer.call({:global, Chat.BroadcastServer}, {:nick, self(), nickname})
       IO.inspect(result)
-
       :gen_tcp.send(socket, result)
     else
       :gen_tcp.send(socket, "Invalid Name. Name not added!")
     end
-end
+  end
 
-defp handle_bc_command(socket, message_list) do
-  string_message = Enum.join(message_list, " ")
-    {:ok, pid_list} = GenServer.call({:global, Chat.BroadcastServer}, {:bc, string_message})
-    for pid <- pid_list do
-      send(pid, string_message)
+  defp handle_bc_command(socket, message_list) do
+    string_message = Enum.join(message_list, " ")
+    case GenServer.call({:global, Chat.BroadcastServer}, {:bc, string_message}) do
+      {:ok, message} ->
+          :gen_tcp.send(socket, message)
+        {:error, reason} ->
+          IO.puts("Error: #{reason}")
+          :gen_tcp.send(socket, reason)
+      end
     end
-end
 
+  defp handle_bc_command2(socket, message_list) do
+    string_message = Enum.join(message_list, " ")
+    case GenServer.call({:global, Chat.BroadcastServer}, {:bc, string_message}) do
+      {:ok, pid_list} ->
+        # Handle the case where the call was successful
+        for pid <- pid_list do
+          send(pid, string_message)
+        end
+        :gen_tcp.send(socket, "Message was broadcasted to everyone")
+
+        {:error, reason} ->
+          IO.puts("Error: #{reason}")
+          :gen_tcp.send(socket, reason)
+      end
+  end
 
   defp validate_nickname(name) do
-  Regex.match?(~r/^[a-zA-Z][a-zA-Z0-9_]{0,9}$/, name)
-end
+    Regex.match?(~r/^[a-zA-Z][a-zA-Z0-9_]{0,9}$/, name)
+  end
 
-    defp handle_unknown_command do
+  defp handle_unknown_command(socket) do
     IO.puts("Unknown command")
+    :gen_tcp.send(socket, "Unknown command\n")
   end
 end
-
-#   def start_link(port \\ 6666) do
-#     GenServer.start_link(__MODULE__, port, name: __MODULE__)
-
-#     IO.puts("Listening on port #{port}")
-#   end
-
-#   @impl true
-#   def init(port \\ 6666) do
-#     opts = [:binary, {:packet, 0}, {:reuseaddr, true}, {:active, false}]
-#     {:ok, socket} = :gen_tcp.listen(port, opts)
-#     # spawn(fn -> accept(socket) end)
-#     IO.puts("Listening on port #{port}")
-#     {:ok, socket}
-#   end
-# end
-  # @impl true
-  # def init(port) do
-  #   {:ok, listener} = :gen_tcp.listen(port, [:binary, {:active, false}, {:reuseaddr, true}])
-  #   {:ok, listener}
-  # end
-
-  # def accept(socket) do
-  #   case :gen_tcp.accept(socket) do
-  #     {:ok, conn} ->
-  #       spawn(fn -> accept(socket) end)
-  #       IO.puts("#{inspect(self())}: accepted connection #{inspect(conn)}")
-  #       loop(conn)
-  #     {:error, reason} ->
-  #       IO.puts("Error accepting connection: #{inspect(reason)}")
-  #       :ok
-  #   end
-  # end
-
-  # defp loop(socket) do
-  #   receive do
-  #     {:tcp, ^socket, data} ->
-  #       #:gen_tcp.send(socket, data)
-  #       IO.inspect(data, label: "Received Data:")
-  #       # handle_client_command(data)
-  #       :inet.setopts(socket, [{:active, :once}])  # need to reset active once
-  #       loop(socket)
-  #     {:tcp_closed, ^socket} ->
-  #       IO.puts("#{inspect(self())}: connection #{inspect(socket)} closed")
-  #       :gen_tcp.close(socket)
-  #     _ -> :ok
-  #       loop(socket)
-  #   end
-  # end
-
-  # def handle_client_command(data) do
-  #   [command | args] = String.split(data, ~r/\s+/)
-  #   case command do
-  #     "/LIST" -> handle_list_command()
-  #     _ -> handle_unknown_command()
-  #   end
-  # end
-
-  # defp validate_nickname(name) do
-  #   Regex.match?(~r/^[a-zA-Z][a-zA-Z0-9_]{0,9}$/, name)
-  # end
-  # # Implement the logic for each command
-  # defp handle_list_command do
-  #   result = GenServer.call(@broadcast_server, {"/LIST", self()})
-  #   IO.inspect(result)
-  #   IO.puts("Handling LIST command")
-  # end
-
-  # defp handle_unknown_command do
-  #   IO.puts("Unknown command")
-  # end
-# end

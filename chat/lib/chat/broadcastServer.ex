@@ -20,6 +20,10 @@ defmodule Chat.BroadcastServer do
     GenServer.call(@name, {:bc, msg})
   end
 
+  def bc2(msg) do
+    GenServer.call(@name, {:bc2, msg})
+  end
+
   def msg(name, message) do
     GenServer.call(@name, {:msg, name, message})
   end
@@ -41,7 +45,7 @@ defmodule Chat.BroadcastServer do
   def handle_call(:list, _from, state) do
     # Handle list command
     :ets.insert(@tab, {-1, "testname"})
-    everything = :ets.tab2list(@tab)
+    everything = get_names()
     IO.inspect(everything)
     {:reply, {:ok, everything}, state}
   end
@@ -69,6 +73,9 @@ defmodule Chat.BroadcastServer do
   @impl true
   def handle_call({:bc, message}, from, state) do
     current_user = :ets.lookup(@tab, from)
+    if message.trim == '' do
+      {:reply, {:error, "Invalid message: cannot be empty"}, state}
+    end
     if current_user == [] do
       {:reply, {:error, "need to make a nickname first"}, state}
     else
@@ -86,6 +93,20 @@ defmodule Chat.BroadcastServer do
   end
 
   @impl true
+  def handle_call({:bc2, message}, from, state) do
+    current_user = :ets.lookup(@tab, from)
+    if message.trim == '' do
+      {:reply, {:error, "Invalid message: cannot be empty"}, state}
+    end
+    if current_user == [] do
+      {:reply, {:error, "need to make a nickname first"}, state}
+    else
+      keys = get_keys()
+      {:reply, {:ok, keys}, state}
+    end
+  end
+
+  @impl true
   def handle_call(:value, _from, value) do
     {:reply, value, value}
   end
@@ -97,9 +118,12 @@ defmodule Chat.BroadcastServer do
 
   defp get_names() do
       pid_dictionary = :ets.tab2list(@tab)
-
      Enum.map(pid_dictionary, &elem(&1, 1))
   end
 
+  defp get_keys() do
+    pid_dictionary = :ets.tab2list(@tab)
+   Enum.map(pid_dictionary, &elem(&1, 0))
+end
 
 end
