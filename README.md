@@ -13,7 +13,7 @@ Ensure that you have Java and Erlang/Elixir installed. You can download them usi
 2. Clone the repository using the following command:
 git pull https://github.com/daquioag/elixir-proxy-chat.git
 
-Alternatively, you can download the ZIP folder from the following location: Elixir Proxy Chat ZIP Folder.
+Alternatively, you can download the ZIP folder from the following location: [Elixir Proxy Chat ZIP Folder](https://github.com/daquioag/elixir-proxy-chat/blob/main/elixir-proxy-chat.zip)
 
 3. To fully test this application, you will need three terminal tabs.
 4. In the first tab, navigate to the 'Chat' directory and run the following command based on 
