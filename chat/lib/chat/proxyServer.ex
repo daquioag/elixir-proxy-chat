@@ -24,8 +24,6 @@ defmodule Chat.ProxyServer do
   defp loop(socket) do
     receive do
       {:tcp, ^socket, data} ->
-        IO.inspect("data")
-        IO.inspect(data)
         handle_client_command(socket, data)
         :inet.setopts(socket, [{:active, :once}])
         loop(socket)
@@ -37,7 +35,8 @@ defmodule Chat.ProxyServer do
 
       {:tcp_closed, ^socket} ->
         IO.puts("#{inspect(self())}: connection #{inspect(socket)} closed")
-        # GenServer.call({:global, Chat.BroadcastServer}, {:delete})
+        {_, reason} = GenServer.call({:global, Chat.BroadcastServer}, {:remove, self()})
+        IO.inspect(reason)
         :gen_tcp.close(socket)
 
       _ ->
@@ -67,39 +66,41 @@ defmodule Chat.ProxyServer do
 
   defp handle_nick_command(socket, args) do
     [nickname | _] = args
+
     case validate_nickname(nickname) do
       true ->
         {_, result} = GenServer.call({:global, Chat.BroadcastServer}, {:nick, self(), nickname})
         :gen_tcp.send(socket, result <> "\n")
+
       false ->
         :gen_tcp.send(socket, "Invalid Name. Name not added! \n")
     end
-end
+  end
 
   defp handle_bc_command(socket, message_list) do
     string_message = Enum.join(message_list, " ")
+
     if String.trim(string_message) == "" do
       :gen_tcp.send(
         socket,
         "Error: Invalid message! Message cannot be empty.\n"
       )
     else
+      case GenServer.call({:global, Chat.BroadcastServer}, {:bc, self()}) do
+        {:ok, pid_list, sender_name} ->
+          # Handle the case where the call was successful
+          for pid <- pid_list do
+            send(pid, {:message, "Message from #{sender_name}: #{string_message}"})
+          end
 
-    case GenServer.call({:global, Chat.BroadcastServer}, {:bc, self()}) do
-      {:ok, pid_list, sender_name} ->
-        # Handle the case where the call was successful
-        for pid <- pid_list do
-          send(pid, {:message, "Message from #{sender_name}: #{string_message}"})
-        end
+          :gen_tcp.send(socket, "Message was broadcasted to everyone!\n")
 
-        :gen_tcp.send(socket, "Message was broadcasted to everyone!\n")
-
-      {:error, reason} ->
-        IO.puts("Error: #{reason}")
-        :gen_tcp.send(socket, reason <> "\n")
+        {:error, reason} ->
+          IO.puts("Error: #{reason}")
+          :gen_tcp.send(socket, reason <> "\n")
+      end
     end
   end
-end
 
   defp handle_msg_command(socket, arguments) do
     [name | message_list] = arguments
