@@ -43,7 +43,7 @@ class ServerReaderThread extends Thread {
         if ((response = in.readLine()) == null) {
           break;
         }
-        System.out.println("server response: " + response);
+        System.out.println("SERVER > " + response);
         System.out.print("> ");
 
       }

@@ -1,6 +1,8 @@
 defmodule Chat.ProxyServer do
   use GenServer
+
   def start_link(port \\ 6666) do
+    IO.puts("Starting Proxy Server!")
     GenServer.start_link(__MODULE__, port)
   end
 
@@ -27,13 +29,15 @@ defmodule Chat.ProxyServer do
         handle_client_command(socket, data)
         :inet.setopts(socket, [{:active, :once}])
         loop(socket)
+
       {:message, content} ->
         IO.inspect(content)
-       :gen_tcp.send(socket, "#{content}\n")
-       loop(socket)
+        :gen_tcp.send(socket, "#{content}\n")
+        loop(socket)
+
       {:tcp_closed, ^socket} ->
         IO.puts("#{inspect(self())}: connection #{inspect(socket)} closed")
-        #GenServer.call({:global, Chat.BroadcastServer}, {:delete})
+        # GenServer.call({:global, Chat.BroadcastServer}, {:delete})
         :gen_tcp.close(socket)
 
       _ ->
@@ -74,50 +78,36 @@ defmodule Chat.ProxyServer do
   end
 
   defp handle_bc_command(socket, message_list) do
-    IO.inspect("handle_bc_command")
     string_message = Enum.join(message_list, " ")
-    trimmed_string_message = String.trim(string_message)
-    if trimmed_string_message == "" do
-      :gen_tcp.send(socket, "The broadcast message cannot be empty \n")
-    end
 
-    case GenServer.call({:global, Chat.BroadcastServer}, {:bc, string_message}) do
-      {:ok, message} ->
-          :gen_tcp.send(socket, message <> "\n")
-        {:error, reason} ->
-          IO.puts("Error: #{reason}")
-          :gen_tcp.send(socket, reason <> "\n")
-      end
-    end
-
-  defp handle_bc_command2(socket, message_list) do
-    string_message = Enum.join(message_list, " ")
-    case GenServer.call({:global, Chat.BroadcastServer}, {:bc, string_message}) do
-      {:ok, pid_list} ->
+    case GenServer.call({:global, Chat.BroadcastServer}, {:bc, self()}) do
+      {:ok, pid_list, sender_name} ->
         # Handle the case where the call was successful
         for pid <- pid_list do
-          send(pid, string_message)
+            send(pid, {:message, "Message from #{sender_name}: #{string_message}"})
         end
-        :gen_tcp.send(socket, "Message was broadcasted to everyone")
+        :gen_tcp.send(socket, "Message was broadcasted to everyone!\n")
 
-        {:error, reason} ->
-          IO.puts("Error: #{reason}")
-          :gen_tcp.send(socket, reason)
-      end
+      {:error, reason} ->
+        IO.puts("Error: #{reason}")
+        :gen_tcp.send(socket, reason <> "\n")
+    end
   end
 
   defp handle_msg_command(socket, arguments) do
-    [ name | message_list] = arguments
+    [name | message_list] = arguments
     string_message = Enum.join(message_list, " ")
-    case GenServer.call({:global, Chat.BroadcastServer}, {:bc, name, string_message}) do
+
+    case GenServer.call({:global, Chat.BroadcastServer}, {:msg, name, self()}) do
       {:ok, receiver_pid} ->
-        send(receiver_pid, string_message)
-          :gen_tcp.send(socket, message <> "\n")
-        {:error, reason} ->
-          IO.puts("Error: #{reason}")
-          :gen_tcp.send(socket, reason <> "\n")
-      end
+        send(receiver_pid, {:message, "Message from #{sender_name}: #{string_message}"})
+        :gen_tcp.send(socket, "Message was broadcasted to #{name}!\n")
+
+      {:error, reason} ->
+        IO.puts("Error: #{reason}")
+        :gen_tcp.send(socket, reason <> "\n")
     end
+  end
 
   defp validate_nickname(name) do
     Regex.match?(~r/^[a-zA-Z][a-zA-Z0-9_]{0,9}$/, name)
@@ -126,17 +116,5 @@ defmodule Chat.ProxyServer do
   defp handle_unknown_command(socket) do
     IO.puts("Unknown command")
     :gen_tcp.send(socket, "Unknown command\n")
-  end
-
-  defp receive_message(socket) do
-    receive do
-      {:message, content} ->
-        IO.inspect(content)
-        :gen_tcp.send(socket, "Received message: #{content}\n")
-        loop(socket)
-      after
-        1000 ->  # Adjust the timeout value (in milliseconds) based on your requirements
-          loop(socket)
-      end
   end
 end
