@@ -38,10 +38,10 @@ You'll now see a '>' symbol, indicating that the Java client is running, and you
 ## Elixir Proxy Chat Commands:
 This chat application supports four commands: /LIST, /NICK <nickname>, /BC <message>, and /MSG <nickname> <message>. Commands are case-sensitive and must be terminated by an end-of-line character.
 
-*/LIST: Lists users in the chat.
-*/NICK <nickname>: Sets your nickname. Nicknames must be unique, start with an alphabet character, and follow specific formatting rules.
-*/BC <message>: Broadcasts a message to all users in the chat.
-*/MSG <nickname> <message>: Sends a private message to a specific user.
+* /LIST: Lists users in the chat.
+* /NICK <nickname>: Sets your nickname. Nicknames must be unique, start with an alphabet character, and follow specific formatting rules.
+* /BC <message>: Broadcasts a message to all users in the chat.
+* /MSG <nickname> <message>: Sends a private message to a specific user.
 
 Setting a Nickname:
 Use the /NICK command followed by your desired nickname.
