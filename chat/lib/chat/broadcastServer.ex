@@ -50,16 +50,18 @@ defmodule Chat.BroadcastServer do
 
   @impl true
   def handle_call({:msg, receiver_name, sender_pid}, _from, state) do
-    current_user = :ets.lookup(@tab, sender_pid)
+    IO.inspect("receiver_name")
+    IO.inspect(receiver_name)
 
-    if current_user == [] do
-      {:reply, {:error, "You must set a nickname before broadcasting a message."}, state}
-    else
-      case :ets.lookup(@tab, receiver_name) do
-        [{receiver_pid, _}] ->
-          {:reply, {:ok, receiver_pid}, state}
+    case :ets.lookup(@tab, sender_pid) do
+      [] ->
+        {:reply, {:error, "You must set a nickname before broadcasting a message."}, state}
 
-        _ ->
+      [{_, sender_name}] ->
+      case :ets.tab2list(@tab) |> Enum.find(fn {_, name} -> name == receiver_name end) do
+        {receiver_pid, _} ->
+          {:reply, {:ok, receiver_pid, sender_name}, state}
+        nil ->
           {:reply, {:error, "The name: #{receiver_name} does not exist!"}, state}
       end
     end

@@ -67,25 +67,31 @@ defmodule Chat.ProxyServer do
 
   defp handle_nick_command(socket, args) do
     [nickname | _] = args
-
-    if validate_nickname(nickname) do
-      {_, result} = GenServer.call({:global, Chat.BroadcastServer}, {:nick, self(), nickname})
-      IO.inspect(result)
-      :gen_tcp.send(socket, result <> "\n")
-    else
-      :gen_tcp.send(socket, "Invalid Name. Name not added! \n")
+    case validate_nickname(nickname) do
+      true ->
+        {_, result} = GenServer.call({:global, Chat.BroadcastServer}, {:nick, self(), nickname})
+        :gen_tcp.send(socket, result <> "\n")
+      false ->
+        :gen_tcp.send(socket, "Invalid Name. Name not added! \n")
     end
-  end
+end
 
   defp handle_bc_command(socket, message_list) do
     string_message = Enum.join(message_list, " ")
+    if String.trim(string_message) == "" do
+      :gen_tcp.send(
+        socket,
+        "Error: Invalid message! Message cannot be empty.\n"
+      )
+    else
 
     case GenServer.call({:global, Chat.BroadcastServer}, {:bc, self()}) do
       {:ok, pid_list, sender_name} ->
         # Handle the case where the call was successful
         for pid <- pid_list do
-            send(pid, {:message, "Message from #{sender_name}: #{string_message}"})
+          send(pid, {:message, "Message from #{sender_name}: #{string_message}"})
         end
+
         :gen_tcp.send(socket, "Message was broadcasted to everyone!\n")
 
       {:error, reason} ->
@@ -93,24 +99,33 @@ defmodule Chat.ProxyServer do
         :gen_tcp.send(socket, reason <> "\n")
     end
   end
+end
 
   defp handle_msg_command(socket, arguments) do
     [name | message_list] = arguments
+    IO.inspect(name)
     string_message = Enum.join(message_list, " ")
 
-    case GenServer.call({:global, Chat.BroadcastServer}, {:msg, name, self()}) do
-      {:ok, receiver_pid} ->
-        send(receiver_pid, {:message, "Message from #{sender_name}: #{string_message}"})
-        :gen_tcp.send(socket, "Message was broadcasted to #{name}!\n")
+    if String.trim(name) == "" or String.trim(string_message) == "" do
+      :gen_tcp.send(
+        socket,
+        "Error: Invalid nickname or message! Nickname and message cannot be empty.\n"
+      )
+    else
+      case GenServer.call({:global, Chat.BroadcastServer}, {:msg, name, self()}) do
+        {:ok, receiver_pid, sender_name} ->
+          send(receiver_pid, {:message, "Message from #{sender_name}: #{string_message}"})
+          :gen_tcp.send(socket, "Message was broadcasted to #{name}!\n")
 
-      {:error, reason} ->
-        IO.puts("Error: #{reason}")
-        :gen_tcp.send(socket, reason <> "\n")
+        {:error, reason} ->
+          IO.puts("Error: #{reason}")
+          :gen_tcp.send(socket, reason <> "\n")
+      end
     end
   end
 
   defp validate_nickname(name) do
-    Regex.match?(~r/^[a-zA-Z][a-zA-Z0-9_]{0,9}$/, name)
+    Regex.match?(~r/^[a-zA-Z][a-zA-Z0-9_]{0,11}$/, name) and String.trim(name) != ""
   end
 
   defp handle_unknown_command(socket) do
