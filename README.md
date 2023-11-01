@@ -14,11 +14,11 @@ Ensure that you have Java and Erlang/Elixir installed. You can download them usi
 git pull https://github.com/daquioag/elixir-proxy-chat.git
 
 3. To fully test this application, you will need four terminal tabs.
-4. In the first tab, navigate to the 'Chat' directory and run the following command based on your operating system: 
+4. In the first tab, change directory to the 'proxy' directory and run the following command based on your operating system: 
 * (windows) iex.bat --sname proxy -S mix 
 * (mac) iex --sname proxy -S mix 
 
-5. In the second tab, navigate to the 'Proxy' directory and run the following command based on your operating system: 
+5. In the second tab, change directory to the 'chat' directory and run the following command based on your operating system: 
 * (windows) iex.bat --sname broadcast -S mix 
 * (mac) iex --sname broadcast -S mix 
 
